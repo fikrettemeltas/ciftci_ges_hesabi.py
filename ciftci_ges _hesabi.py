@@ -1,76 +1,91 @@
 import streamlit as st
 import urllib.parse
+import math
 
-# Sayfa ayarları ve ikon
-st.set_page_config(page_title="Çiftçi GES Hesapla", page_icon="🚜")
+st.set_page_config(page_title="Pro GES Hesaplayıcı", page_icon="☀️")
 
-# Sayfa Başlığı
-st.markdown("<h2 style='text-align: center; color: #2E7D32;'>🚜 Çiftçi GES & Sulama Destek</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; color: #1B5E20;'>☀️ Gelişmiş GES & Pompa Hesaplayıcı</h2>", unsafe_allow_html=True)
 st.write("---")
 
-# Bilgi Girişleri
-isim = st.text_input("👤 Ad Soyad")
-ilce = st.text_input("📍 İlçe / Köy")
+# Giriş Bölümü
+with st.sidebar:
+    st.header("👤 Müşteri Bilgileri")
+    isim = st.text_input("Ad Soyad")
+    ilce = st.text_input("İlçe / Köy")
+    ada_parsel = st.text_input("Ada / Parsel")
 
 col1, col2 = st.columns(2)
+
 with col1:
-    ada = st.text_input("🔢 Ada")
+    st.subheader("💧 Pompa & Su Verileri")
+    hesap_yontemi = st.radio("Hesap Yöntemi", ["Pompa Gücünü Biliyorum", "Debi ve Derinlikten Hesapla"])
+    
+    if hesap_yontemi == "Pompa Gücünü Biliyorum":
+        pompa_kw = st.number_input("Pompa Gücü (kW)", min_value=0.0, value=37.0, step=1.0)
+    else:
+        debi = st.number_input("İstenen Debi (m³/saat)", min_value=0.0, value=50.0)
+        derinlik = st.number_input("Toplam Basma Yüksekliği (Metre)", min_value=0.0, value=100.0)
+        # Hidrolik güç formülü (Verim dahil yaklaşık)
+        pompa_kw = (debi * derinlik) / 200 # Pratik katsayı
+
 with col2:
-    parsel = st.text_input("🔢 Parsel")
+    st.subheader("⚙️ Panel Özellikleri")
+    panel_watt = st.selectbox("Panel Gücü (Watt)", [450, 545, 550, 600], index=2)
+    emniyet_katsayisi = 1.45 # Kayıplar ve sabah/akşam çalışma payı
+
+# HESAPLAMALAR
+gereken_ges_kw = pompa_kw * emniyet_katsayisi
+panel_sayisi = math.ceil((gereken_ges_kw * 1000) / panel_watt)
+
+# Sürücü ve Alan Hesapları
+surucu_kw = pompa_kw * 1.2 # Bir üst sınıf sürücü önerilir
+toplam_alan = panel_sayisi * 2.6 # 550W panel yaklaşık 2.58 m2'dir
+
+# Dizilim (String) Önerisi (Ortalama 800V DC girişe göre)
+# 550W paneller genelde 18-20'li seriler halinde bağlanır
+seri_sayisi = 18
+paralel_sayisi = math.ceil(panel_sayisi / seri_sayisi)
 
 st.divider()
 
-sulama = st.selectbox("💧 Basınçlı Sulama Sistemi", 
-                      ["Damlama", "Yağmurlama", "Pivot", "Güneş Enerjili Sulama", "Diğer"])
+# SONUÇ EKRANI
+st.success(f"### 📊 Teknik Analiz Sonuçları")
+res_col1, res_col2, res_col3 = st.columns(3)
 
-pompa_hp = st.number_input("⚡ Pompa Gücü (HP)", min_value=0.0, step=0.5, value=0.0)
-elektrik_tuketimi = st.text_input("🔌 Yıllık Tüketim (kWh)")
+with res_col1:
+    st.metric("Gereken GES Gücü", f"{gereken_ges_kw:.1f} kWp")
+    st.metric("Panel Adedi", f"{panel_sayisi} Adet")
 
-# HESAPLAMA MOTORU
-if pompa_hp > 0:
-    # 1 HP = 0.75 kW varsayımı ve %50 emniyet payı (1.5 katsayısı)
-    önerilen_panel = pompa_hp * 0.75 * 1.5 
-    st.info(f"💡 Tavsiye Edilen Panel Gücü: **~{önerilen_panel:.2f} kWp**")
-else:
-    önerilen_panel = 0
+with res_col2:
+    st.metric("Sürücü Gücü", f"{surucu_kw:.1f} kW")
+    st.metric("Tahmini Alan", f"{toplam_alan:.0f} m²")
+
+with res_col3:
+    st.metric("Dizilim (String)", f"{paralel_sayisi} x {seri_sayisi}")
+    st.info("💡 Öneri: Panelleri 18'li seriler halinde bağlayın.")
 
 st.divider()
 
-if st.button("✅ HESAPLA VE WHATSAPP'A GÖNDER", use_container_width=True):
+# WHATSAPP GÖNDERİMİ
+if st.button("✅ TEKNİK RAPORU WHATSAPP'A GÖNDER", use_container_width=True):
     if isim and ilce:
         mesaj = (
-            f"*Yeni GES & Sulama Talebi*\n"
-            f"-------------------\n"
-            f"👤 *İsim:* {isim}\n"
-            f"📍 *Konum:* {ilce} ({ada}/{parsel})\n"
-            f"💧 *Sistem:* {sulama}\n"
-            f"⚡ *Pompa Gücü:* {pompa_hp} HP\n"
-            f"☀️ *Hesaplanan Panel İhtiyacı:* {önerilen_panel:.2f} kWp\n"
-            f"🔌 *Yıllık Tüketim:* {elektrik_tuketimi} kWh\n\n"
-            f"Geliştiren: Ahmet Fikret Temeltaş"
+            f"*GES SULAMA TEKNİK RAPORU*\n"
+            f"---------------------------\n"
+            f"👤 *Müşteri:* {isim} / {ilce}\n"
+            f"🔢 *Ada Parsel:* {ada_parsel}\n"
+            f"⚡ *Pompa Gücü:* {pompa_kw:.1f} kW\n"
+            f"☀️ *Kurulacak GES:* {gereken_ges_kw:.1f} kWp\n"
+            f"🧩 *Panel:* {panel_sayisi} Adet {panel_watt}W\n"
+            f"🔌 *Sürücü:* {surucu_kw:.1f} kW Solar Driver\n"
+            f"📐 *Gereken Alan:* ~{toplam_alan:.0f} m²\n"
+            f"⛓️ *Dizilim:* {paralel_sayisi} paralel x {seri_sayisi} seri\n"
+            f"---------------------------\n"
+            f"Hazırlayan: Ahmet Fikret Temeltaş"
         )
         
         tel = "905075031990" 
-        mesaj_kodlu = urllib.parse.quote(mesaj)
-        wa_link = f"https://wa.me/{tel}?text={mesaj_kodlu}"
-        
-        st.markdown(f'''
-            <a href="{wa_link}" target="_blank" style="text-decoration: none;">
-                <div style="background-color: #25D366; color: white; padding: 18px; text-align: center; border-radius: 12px; font-weight: bold; font-size: 1.2em;">
-                    📱 WhatsApp'tan Bilgileri Gönder
-                </div>
-            </a>
-            ''', unsafe_allow_html=True)
+        wa_link = f"https://wa.me/{tel}?text={urllib.parse.quote(mesaj)}"
+        st.markdown(f'<a href="{wa_link}" target="_blank" style="text-decoration:none;"><div style="background-color:#25D366;color:white;padding:15px;text-align:center;border-radius:10px;">WhatsApp Mesajını Onayla</div></a>', unsafe_allow_html=True)
     else:
-        st.warning("Lütfen Ad Soyad ve İlçe alanlarını doldurun.")
-
-# İMZA BÖLÜMÜ (En Alta Şık Bir Şekilde)
-st.write("\n" * 5) # Biraz boşluk bırakalım
-st.markdown("---")
-st.markdown(
-    "<p style='text-align: center; color: #888888; font-style: italic; font-size: 0.9em;'>"
-    "Software Developed by<br>"
-    "<strong style='color: #2E7D32; font-size: 1.2em;'>Ahmet Fikret Temeltaş</strong>"
-    "</p>", 
-    unsafe_allow_html=True
-)
+        st.error("Lütfen isim ve ilçe bilgilerini girin!")
