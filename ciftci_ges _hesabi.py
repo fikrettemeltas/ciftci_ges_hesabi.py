@@ -1,91 +1,92 @@
 import streamlit as st
 import urllib.parse
 import math
+from datetime import date
 
-st.set_page_config(page_title="Pro GES Hesaplayıcı", page_icon="☀️")
+st.set_page_config(page_title="Pro GES Hesaplayıcı", page_icon="☀️", layout="wide")
 
-st.markdown("<h2 style='text-align: center; color: #1B5E20;'>☀️ Gelişmiş GES & Pompa Hesaplayıcı</h2>", unsafe_allow_html=True)
+# --- BAŞLIK VE SLOGAN ---
+st.markdown("<h1 style='text-align: center; color: #1B5E20;'>☀️ Güneşle Gelen Bereket</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; font-style: italic; color: #388E3C;'>\"Toprağınız Suya, Cebiniz Rahata Kavuşsun.\"</p>", unsafe_allow_html=True)
 st.write("---")
 
-# Giriş Bölümü
+# --- SIDEBAR: GİRİŞLER ---
 with st.sidebar:
-    st.header("👤 Müşteri Bilgileri")
-    isim = st.text_input("Ad Soyad")
+    st.header("👤 Müşteri & Proje")
     ilce = st.text_input("İlçe / Köy")
     ada_parsel = st.text_input("Ada / Parsel")
+    
+    st.divider()
+    
+    st.header("💰 Birim Fiyat Güncelleme")
+    st.info("Firmadan aldığınız güncel rakamları buraya girin.")
+    fiyat_panel = st.number_input("Panel Fiyatı (TL/Adet)", value=8250)
+    fiyat_surucu = st.number_input("Sürücü Fiyatı (TL)", value=65000)
+    fiyat_ayak = st.number_input("Panel Başı Çelik Ayak (TL)", value=1600)
+    fiyat_kablo = st.number_input("Kablo Metre Fiyatı (TL)", value=70)
 
+# --- ANA EKRAN: HESAPLAMA ---
 col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("💧 Pompa & Su Verileri")
-    hesap_yontemi = st.radio("Hesap Yöntemi", ["Pompa Gücünü Biliyorum", "Debi ve Derinlikten Hesapla"])
-    
-    if hesap_yontemi == "Pompa Gücünü Biliyorum":
-        pompa_kw = st.number_input("Pompa Gücü (kW)", min_value=0.0, value=37.0, step=1.0)
-    else:
-        debi = st.number_input("İstenen Debi (m³/saat)", min_value=0.0, value=50.0)
-        derinlik = st.number_input("Toplam Basma Yüksekliği (Metre)", min_value=0.0, value=100.0)
-        # Hidrolik güç formülü (Verim dahil yaklaşık)
-        pompa_kw = (debi * derinlik) / 200 # Pratik katsayı
+    st.subheader("💧 Sistem Verileri")
+    pompa_kw = st.number_input("Pompa Gücü (kW)", min_value=0.0, value=37.0)
+    panel_watt = st.selectbox("Panel Gücü (Watt)", [450, 545, 550, 600], index=2)
+
+# Hesaplamalar
+gereken_ges_kw = pompa_kw * 1.35 
+panel_sayisi = math.ceil((gereken_ges_kw * 1000) / panel_watt)
+toplam_kurulu_guc = (panel_sayisi * panel_watt) / 1000
+tahmini_kablo_metraj = panel_sayisi * 3 
+
+# Maliyetler
+total_panel = panel_sayisi * fiyat_panel
+total_ayak = panel_sayisi * fiyat_ayak
+total_kablo = tahmini_kablo_metraj * fiyat_kablo
+genel_toplam = total_panel + fiyat_surucu + total_ayak + total_kablo
 
 with col2:
-    st.subheader("⚙️ Panel Özellikleri")
-    panel_watt = st.selectbox("Panel Gücü (Watt)", [450, 545, 550, 600], index=2)
-    emniyet_katsayisi = 1.45 # Kayıplar ve sabah/akşam çalışma payı
+    st.subheader("📊 Özet Bilgi")
+    st.write(f"**Toplam Panel:** {panel_sayisi} Adet")
+    st.write(f"**Kurulu Güç:** {toplam_kurulu_guc:.2f} kWp")
+    st.write(f"**Yatırım Tutarı:** {genel_toplam:,.0f} TL")
 
-# HESAPLAMALAR
-gereken_ges_kw = pompa_kw * emniyet_katsayisi
-panel_sayisi = math.ceil((gereken_ges_kw * 1000) / panel_watt)
+# --- MALİYET TABLOSU ---
+st.subheader("📋 Teknik Detay ve Maliyet Tablosu")
+tablo_verisi = f"""
+| Malzeme | Miktar | Birim Fiyat | Toplam |
+| :--- | :--- | :--- | :--- |
+| **Güneş Paneli ({panel_watt}W)** | {panel_sayisi} Adet | {fiyat_panel:,} TL | {total_panel:,} TL |
+| **Solar Sürücü** | 1 Adet | {fiyat_surucu:,} TL | {fiyat_surucu:,} TL |
+| **Çelik Ayak Sistemi** | {panel_sayisi} Takım | {fiyat_ayak:,} TL | {total_ayak:,} TL |
+| **Solar Kablolama** | {tahmini_kablo_metraj} Metre | {fiyat_kablo:,} TL | {total_kablo:,} TL |
+| **GENEL TOPLAM** | | | **{genel_toplam:,.0f} TL** |
+"""
+st.markdown(tablo_verisi)
+st.caption("⚠️ *Bu fiyatlar ortalama olup, uygulama detaylarına göre ±%10 değişkenlik gösterebilir.*")
 
-# Sürücü ve Alan Hesapları
-surucu_kw = pompa_kw * 1.2 # Bir üst sınıf sürücü önerilir
-toplam_alan = panel_sayisi * 2.6 # 550W panel yaklaşık 2.58 m2'dir
+# --- İMZA VE KAPANIŞ ---
+st.write("---")
+c1, c2 = st.columns([2, 1])
+with c2:
+    st.markdown(f"""
+    **Hazırlayan:** **Ahmet Fikret Temeltaş** 📞 0507 503 19 90  
+    📅 Tarih: {date.today().strftime('%d.%m.%Y')}
+    """)
 
-# Dizilim (String) Önerisi (Ortalama 800V DC girişe göre)
-# 550W paneller genelde 18-20'li seriler halinde bağlanır
-seri_sayisi = 18
-paralel_sayisi = math.ceil(panel_sayisi / seri_sayisi)
+# --- WHATSAPP ---
+if st.button("✅ TEKLİFİ WHATSAPP İLE GÖNDER", use_container_width=True):
+    mesaj = (
+        f"*☀️ GES SULAMA SİSTEMİ TEKLİFİ*\\n"
+        f"---------------------------\\n"
+        f"📍 *Bölge:* {ilce} / {ada_parsel}\\n"
+        f"⚡ *Sistem:* {toplam_kurulu_guc:.2f} kWp / {panel_sayisi} Panel\\n"
+        f"💰 *Tahmini Yatırım:* {genel_toplam:,.0f} TL\\n"
+        f"---------------------------\\n"
+        f"*Saygılarımla,*\\n"
+        f"*Ahmet Fikret Temeltaş*\\n"
+        f"📞 0507 503 19 90"
+    )
+    url = f"https://wa.me/905075031990?text={urllib.parse.quote(mesaj)}"
+    st.markdown(f"[Mesajı Gönderilmek Üzere Hazırla]({url})")
 
-st.divider()
-
-# SONUÇ EKRANI
-st.success(f"### 📊 Teknik Analiz Sonuçları")
-res_col1, res_col2, res_col3 = st.columns(3)
-
-with res_col1:
-    st.metric("Gereken GES Gücü", f"{gereken_ges_kw:.1f} kWp")
-    st.metric("Panel Adedi", f"{panel_sayisi} Adet")
-
-with res_col2:
-    st.metric("Sürücü Gücü", f"{surucu_kw:.1f} kW")
-    st.metric("Tahmini Alan", f"{toplam_alan:.0f} m²")
-
-with res_col3:
-    st.metric("Dizilim (String)", f"{paralel_sayisi} x {seri_sayisi}")
-    st.info("💡 Öneri: Panelleri 18'li seriler halinde bağlayın.")
-
-st.divider()
-
-# WHATSAPP GÖNDERİMİ
-if st.button("✅ TEKNİK RAPORU WHATSAPP'A GÖNDER", use_container_width=True):
-    if isim and ilce:
-        mesaj = (
-            f"*GES SULAMA TEKNİK RAPORU*\n"
-            f"---------------------------\n"
-            f"👤 *Müşteri:* {isim} / {ilce}\n"
-            f"🔢 *Ada Parsel:* {ada_parsel}\n"
-            f"⚡ *Pompa Gücü:* {pompa_kw:.1f} kW\n"
-            f"☀️ *Kurulacak GES:* {gereken_ges_kw:.1f} kWp\n"
-            f"🧩 *Panel:* {panel_sayisi} Adet {panel_watt}W\n"
-            f"🔌 *Sürücü:* {surucu_kw:.1f} kW Solar Driver\n"
-            f"📐 *Gereken Alan:* ~{toplam_alan:.0f} m²\n"
-            f"⛓️ *Dizilim:* {paralel_sayisi} paralel x {seri_sayisi} seri\n"
-            f"---------------------------\n"
-            f"Hazırlayan: Ahmet Fikret Temeltaş"
-        )
-        
-        tel = "905075031990" 
-        wa_link = f"https://wa.me/{tel}?text={urllib.parse.quote(mesaj)}"
-        st.markdown(f'<a href="{wa_link}" target="_blank" style="text-decoration:none;"><div style="background-color:#25D366;color:white;padding:15px;text-align:center;border-radius:10px;">WhatsApp Mesajını Onayla</div></a>', unsafe_allow_html=True)
-    else:
-        st.error("Lütfen isim ve ilçe bilgilerini girin!")
